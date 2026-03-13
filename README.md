@@ -1,6 +1,6 @@
 # 売上ダッシュボード
 
-`csv/sales_transactions.csv` を使って表示する、学習用の Streamlit 売上ダッシュボードです。
+`csv/sales_transactions.csv` を使って表示する、学習用の静的売上ダッシュボードです。`index.html` は GitHub Pages でそのまま公開できます。
 
 ## 機能
 
@@ -11,35 +11,34 @@
 
 ## 実行方法
 
-1. 仮想環境の作成と必要なライブラリのインストール
+### GitHub Pages で公開する場合
 
-```bash
-cd ~/codex_projects/dashbord
-uv venv
-uv pip install -r test/requirements.txt
-```
+1. GitHub のリポジトリ設定を開きます。
+2. `Pages` を選びます。
+3. `Deploy from a branch` を選びます。
+4. ブランチは `main`、フォルダは `/ (root)` を選びます。
+5. 保存すると、しばらくして `index.html` が公開されます。
 
-2. アプリの起動
+### ローカルで確認する場合
 
-```bash
-cd ~/codex_projects/dashbord/test
-uv run streamlit run app.py
-```
-
-番外: `streamlit run app.py` で実行する場合は、`test` ディレクトリで親階層の仮想環境を読み込みます。
+`fetch()` で CSV を読むため、`file://` 直開きではなくローカルサーバーを使います。
 
 ```bash
 cd ~/codex_projects/dashbord/test
-source ../.venv/bin/activate
-streamlit run app.py
+python3 -m http.server 8000
 ```
+
+ブラウザで `http://localhost:8000` を開きます。
 
 ## ファイル
 
-- `app.py`: ダッシュボード本体
+- `index.html`: GitHub Pages 用の静的ダッシュボード
+- `app.py`: Streamlit 版のダッシュボード
+- `requirements.txt`: Streamlit 版の依存関係
 - `csv/sales_transactions.csv`: 入力データ
 
 ## 補足
 
 - CSV は `utf-8-sig` を想定して読み込みます。
 - 集計には `revenue` と `gross_profit`、取引件数には `transaction_id` を使っています。
+- GitHub Pages では Python は動かないため、公開用は `index.html` を使います。

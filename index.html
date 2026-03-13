@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>売上ダッシュボード</title>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+      :root {
+        --bg: #f3f0e8;
+        --panel: #fffdf8;
+        --line: #d7cdbd;
+        --text: #1f2933;
+        --sub: #5b6773;
+        --accent: #bc6c25;
+        --accent-soft: #dda15e;
+        --green: #4f772d;
+        --shadow: 0 16px 40px rgba(64, 49, 27, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Hiragino Sans", "Noto Sans JP", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(221, 161, 94, 0.2), transparent 28%),
+          linear-gradient(180deg, #f7f3eb 0%, #efe8db 100%);
+      }
+
+      .page {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        min-height: 100vh;
+      }
+
+      .sidebar {
+        padding: 24px;
+        border-right: 1px solid var(--line);
+        background: rgba(255, 253, 248, 0.75);
+        backdrop-filter: blur(8px);
+      }
+
+      .sidebar h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+      }
+
+      .sidebar p {
+        margin: 0 0 24px;
+        color: var(--sub);
+        line-height: 1.6;
+      }
+
+      .filter-group {
+        margin-bottom: 20px;
+      }
+
+      .filter-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .filter-group input,
+      .filter-group select,
+      .filter-group button {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel);
+        font: inherit;
+      }
+
+      .filter-group select {
+        min-height: 120px;
+      }
+
+      .filter-group button {
+        cursor: pointer;
+        color: #fff;
+        background: var(--accent);
+        border: none;
+        font-weight: 700;
+      }
+
+      .content {
+        padding: 24px;
+      }
+
+      .status {
+        margin-bottom: 16px;
+        padding: 12px 16px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(255, 253, 248, 0.8);
+      }
+
+      .kpi-grid,
+      .chart-grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      .kpi-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin-bottom: 16px;
+      }
+
+      .chart-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .card {
+        padding: 18px;
+        border: 1px solid rgba(188, 108, 37, 0.12);
+        border-radius: 18px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      .card h2 {
+        margin: 0 0 12px;
+        font-size: 18px;
+      }
+
+      .kpi-label {
+        margin: 0 0 8px;
+        color: var(--sub);
+        font-size: 14px;
+      }
+
+      .kpi-value {
+        margin: 0;
+        font-size: 32px;
+        font-weight: 800;
+      }
+
+      .full-width {
+        grid-column: 1 / -1;
+      }
+
+      .table-wrap {
+        overflow: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        padding: 10px 12px;
+        border-bottom: 1px solid #ece4d7;
+        text-align: left;
+        white-space: nowrap;
+        font-size: 14px;
+      }
+
+      th {
+        position: sticky;
+        top: 0;
+        background: #fbf8f2;
+      }
+
+      .empty {
+        color: var(--sub);
+      }
+
+      @media (max-width: 960px) {
+        .page {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          border-right: none;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .kpi-grid,
+        .chart-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <aside class="sidebar">
+        <h1>売上ダッシュボード</h1>
+        <p>GitHub Pages で公開できる、学習用の静的ダッシュボードです。</p>
+
+        <div class="filter-group">
+          <label for="start-date">開始日</label>
+          <input id="start-date" type="date" />
+        </div>
+
+        <div class="filter-group">
+          <label for="end-date">終了日</label>
+          <input id="end-date" type="date" />
+        </div>
+
+        <div class="filter-group">
+          <label for="region-filter">地域</label>
+          <select id="region-filter" multiple></select>
+        </div>
+
+        <div class="filter-group">
+          <label for="channel-filter">チャネル</label>
+          <select id="channel-filter" multiple></select>
+        </div>
+
+        <div class="filter-group">
+          <label for="category-filter">商品カテゴリ</label>
+          <select id="category-filter" multiple></select>
+        </div>
+
+        <div class="filter-group">
+          <button id="reset-button" type="button">フィルタをリセット</button>
+        </div>
+      </aside>
+
+      <main class="content">
+        <div id="status" class="status">CSV を読み込んでいます...</div>
+
+        <section class="kpi-grid">
+          <article class="card">
+            <p class="kpi-label">総売上</p>
+            <p id="total-revenue" class="kpi-value">-</p>
+          </article>
+          <article class="card">
+            <p class="kpi-label">粗利</p>
+            <p id="total-profit" class="kpi-value">-</p>
+          </article>
+          <article class="card">
+            <p class="kpi-label">取引件数</p>
+            <p id="transaction-count" class="kpi-value">-</p>
+          </article>
+        </section>
+
+        <section class="chart-grid">
+          <article class="card">
+            <h2>月別売上</h2>
+            <canvas id="monthly-chart"></canvas>
+          </article>
+          <article class="card">
+            <h2>地域別売上</h2>
+            <canvas id="regional-chart"></canvas>
+          </article>
+          <article class="card full-width">
+            <h2>カテゴリ別売上</h2>
+            <canvas id="category-chart"></canvas>
+          </article>
+          <article class="card full-width">
+            <h2>明細表</h2>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>取引ID</th>
+                    <th>日付</th>
+                    <th>地域</th>
+                    <th>チャネル</th>
+                    <th>商品名</th>
+                    <th>カテゴリ</th>
+                    <th>数量</th>
+                    <th>売上</th>
+                    <th>粗利</th>
+                  </tr>
+                </thead>
+                <tbody id="detail-body"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const csvPath = "./csv/sales_transactions.csv";
+      const state = {
+        rows: [],
+        charts: {},
+      };
+
+      const elements = {
+        status: document.getElementById("status"),
+        startDate: document.getElementById("start-date"),
+        endDate: document.getElementById("end-date"),
+        regionFilter: document.getElementById("region-filter"),
+        channelFilter: document.getElementById("channel-filter"),
+        categoryFilter: document.getElementById("category-filter"),
+        resetButton: document.getElementById("reset-button"),
+        totalRevenue: document.getElementById("total-revenue"),
+        totalProfit: document.getElementById("total-profit"),
+        transactionCount: document.getElementById("transaction-count"),
+        detailBody: document.getElementById("detail-body"),
+      };
+
+      function formatYen(value) {
+        return new Intl.NumberFormat("ja-JP", {
+          style: "currency",
+          currency: "JPY",
+          maximumFractionDigits: 0,
+        }).format(value);
+      }
+
+      function formatNumber(value) {
+        return new Intl.NumberFormat("ja-JP").format(value);
+      }
+
+      function getSelectedValues(selectElement) {
+        return Array.from(selectElement.selectedOptions).map((option) => option.value);
+      }
+
+      function setOptions(selectElement, values) {
+        selectElement.innerHTML = "";
+        values.forEach((value) => {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = value;
+          option.selected = true;
+          selectElement.appendChild(option);
+        });
+      }
+
+      function groupSum(rows, key) {
+        const totals = new Map();
+        rows.forEach((row) => {
+          totals.set(key(row), (totals.get(key(row)) || 0) + row.revenue);
+        });
+        return totals;
+      }
+
+      function createChart(canvasId, type, labels, data, color) {
+        const existingChart = state.charts[canvasId];
+        if (existingChart) {
+          existingChart.destroy();
+        }
+
+        state.charts[canvasId] = new Chart(document.getElementById(canvasId), {
+          type,
+          data: {
+            labels,
+            datasets: [
+              {
+                label: "売上",
+                data,
+                borderColor: color,
+                backgroundColor: `${color}99`,
+                borderWidth: 2,
+                tension: 0.3,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                ticks: {
+                  callback(value) {
+                    return formatYen(value);
+                  },
+                },
+              },
+            },
+            plugins: {
+              legend: {
+                display: false,
+              },
+              tooltip: {
+                callbacks: {
+                  label(context) {
+                    return formatYen(context.parsed.y ?? context.parsed.x ?? 0);
+                  },
+                },
+              },
+            },
+          },
+        });
+      }
+
+      function renderTable(rows) {
+        elements.detailBody.innerHTML = "";
+
+        if (rows.length === 0) {
+          const emptyRow = document.createElement("tr");
+          emptyRow.innerHTML = '<td class="empty" colspan="9">表示できるデータがありません。</td>';
+          elements.detailBody.appendChild(emptyRow);
+          return;
+        }
+
+        rows
+          .slice()
+          .sort((a, b) => (a.date < b.date ? 1 : -1))
+          .forEach((row) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+              <td>${row.transaction_id}</td>
+              <td>${row.date}</td>
+              <td>${row.region}</td>
+              <td>${row.channel}</td>
+              <td>${row.product_name}</td>
+              <td>${row.product_category}</td>
+              <td>${formatNumber(row.quantity)}</td>
+              <td>${formatYen(row.revenue)}</td>
+              <td>${formatYen(row.gross_profit)}</td>
+            `;
+            elements.detailBody.appendChild(tr);
+          });
+      }
+
+      function getFilteredRows() {
+        const selectedRegions = getSelectedValues(elements.regionFilter);
+        const selectedChannels = getSelectedValues(elements.channelFilter);
+        const selectedCategories = getSelectedValues(elements.categoryFilter);
+        const startDate = elements.startDate.value;
+        const endDate = elements.endDate.value;
+
+        return state.rows.filter((row) => {
+          return (
+            row.date >= startDate &&
+            row.date <= endDate &&
+            selectedRegions.includes(row.region) &&
+            selectedChannels.includes(row.channel) &&
+            selectedCategories.includes(row.product_category)
+          );
+        });
+      }
+
+      function renderDashboard() {
+        const filteredRows = getFilteredRows();
+
+        const totalRevenue = filteredRows.reduce((sum, row) => sum + row.revenue, 0);
+        const totalProfit = filteredRows.reduce((sum, row) => sum + row.gross_profit, 0);
+        const transactionCount = new Set(filteredRows.map((row) => row.transaction_id)).size;
+
+        elements.totalRevenue.textContent = formatYen(totalRevenue);
+        elements.totalProfit.textContent = formatYen(totalProfit);
+        elements.transactionCount.textContent = formatNumber(transactionCount);
+        elements.status.textContent = `${formatNumber(filteredRows.length)} 件の明細を表示中`;
+
+        const monthlyMap = groupSum(filteredRows, (row) => row.month);
+        const regionalMap = groupSum(filteredRows, (row) => row.region);
+        const categoryMap = groupSum(filteredRows, (row) => row.product_category);
+
+        const monthlyLabels = Array.from(monthlyMap.keys()).sort();
+        const regionalEntries = Array.from(regionalMap.entries()).sort((a, b) => a[1] - b[1]);
+        const categoryEntries = Array.from(categoryMap.entries()).sort((a, b) => b[1] - a[1]);
+
+        createChart(
+          "monthly-chart",
+          "line",
+          monthlyLabels,
+          monthlyLabels.map((label) => monthlyMap.get(label)),
+          "#bc6c25"
+        );
+        createChart(
+          "regional-chart",
+          "bar",
+          regionalEntries.map((entry) => entry[0]),
+          regionalEntries.map((entry) => entry[1]),
+          "#4f772d"
+        );
+        createChart(
+          "category-chart",
+          "bar",
+          categoryEntries.map((entry) => entry[0]),
+          categoryEntries.map((entry) => entry[1]),
+          "#dda15e"
+        );
+
+        renderTable(filteredRows);
+      }
+
+      function initializeFilters(rows) {
+        const regions = [...new Set(rows.map((row) => row.region))].sort();
+        const channels = [...new Set(rows.map((row) => row.channel))].sort();
+        const categories = [...new Set(rows.map((row) => row.product_category))].sort();
+        const dates = rows.map((row) => row.date).sort();
+
+        setOptions(elements.regionFilter, regions);
+        setOptions(elements.channelFilter, channels);
+        setOptions(elements.categoryFilter, categories);
+
+        elements.startDate.value = dates[0];
+        elements.endDate.value = dates[dates.length - 1];
+        elements.startDate.min = dates[0];
+        elements.startDate.max = dates[dates.length - 1];
+        elements.endDate.min = dates[0];
+        elements.endDate.max = dates[dates.length - 1];
+      }
+
+      function bindEvents() {
+        [
+          elements.startDate,
+          elements.endDate,
+          elements.regionFilter,
+          elements.channelFilter,
+          elements.categoryFilter,
+        ].forEach((element) => {
+          element.addEventListener("change", renderDashboard);
+        });
+
+        elements.resetButton.addEventListener("click", () => {
+          initializeFilters(state.rows);
+          renderDashboard();
+        });
+      }
+
+      async function loadCsv() {
+        const response = await fetch(csvPath);
+        const csvText = await response.text();
+
+        const parsed = Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+        });
+
+        state.rows = parsed.data.map((row) => ({
+          ...row,
+          quantity: Number(row.quantity),
+          revenue: Number(row.revenue),
+          gross_profit: Number(row.gross_profit),
+        }));
+      }
+
+      async function init() {
+        try {
+          await loadCsv();
+          initializeFilters(state.rows);
+          bindEvents();
+          renderDashboard();
+        } catch (error) {
+          elements.status.textContent = "CSV の読み込みに失敗しました。";
+          console.error(error);
+        }
+      }
+
+      init();
+    </script>
+  </body>
+</html>
