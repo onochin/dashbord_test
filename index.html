@@ -130,6 +130,16 @@
         font-size: 18px;
       }
 
+      .chart-box {
+        position: relative;
+        height: 320px;
+      }
+
+      .chart-box canvas {
+        width: 100% !important;
+        height: 100% !important;
+      }
+
       .kpi-label {
         margin: 0 0 8px;
         color: var(--sub);
@@ -248,15 +258,21 @@
         <section class="chart-grid">
           <article class="card">
             <h2>月別売上</h2>
-            <canvas id="monthly-chart"></canvas>
+            <div class="chart-box">
+              <canvas id="monthly-chart"></canvas>
+            </div>
           </article>
           <article class="card">
             <h2>地域別売上</h2>
-            <canvas id="regional-chart"></canvas>
+            <div class="chart-box">
+              <canvas id="regional-chart"></canvas>
+            </div>
           </article>
           <article class="card full-width">
             <h2>カテゴリ別売上</h2>
-            <canvas id="category-chart"></canvas>
+            <div class="chart-box">
+              <canvas id="category-chart"></canvas>
+            </div>
           </article>
           <article class="card full-width">
             <h2>明細表</h2>
@@ -342,7 +358,13 @@
       function createChart(canvasId, type, labels, data, color) {
         const existingChart = state.charts[canvasId];
         if (existingChart) {
-          existingChart.destroy();
+          existingChart.data.labels = labels;
+          existingChart.data.datasets[0].data = data;
+          existingChart.data.datasets[0].borderColor = color;
+          existingChart.data.datasets[0].backgroundColor = `${color}99`;
+          existingChart.config.type = type;
+          existingChart.update();
+          return;
         }
 
         state.charts[canvasId] = new Chart(document.getElementById(canvasId), {
@@ -363,6 +385,7 @@
           options: {
             responsive: true,
             maintainAspectRatio: false,
+            animation: false,
             scales: {
               y: {
                 ticks: {
